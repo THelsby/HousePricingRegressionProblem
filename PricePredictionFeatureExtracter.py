@@ -82,11 +82,11 @@ housingDataTest = readInData("test.csv")
 Ids = housingDataTest["Id"]
 housingDataTrain = removeColumns(housingDataTrain)
 housingDataTest = removeColumns(housingDataTest)
-
 labelsTrain, housingDataWithoutLabelsTrain = splitFeaturesAndLabels(housingDataTrain)
-housingDataTrain, housingDataValidation, housingDataTrainLabels, housingDataValidationLabels = model_selection.train_test_split(housingDataTrain, labelsTrain, test_size=0.25)
+housingDataTrain, housingDataValidation, housingDataTrainLabels, housingDataValidationLabels = model_selection.train_test_split(housingDataWithoutLabelsTrain, labelsTrain, test_size=0.25, random_state=42)
 
-housingDataNullsToMeanTrain = handleNullsNumber(housingDataWithoutLabelsTrain)
+
+housingDataNullsToMeanTrain = handleNullsNumber(housingDataTrain)
 housingDataNullsToMeanValidation = handleNullsNumber(housingDataValidation)
 housingDataNullsToMeanTest = handleNullsNumber(housingDataTest)
 
@@ -104,15 +104,18 @@ housingDataNormalisedTest = ordinalEncoder(housingDataNoNullsTest)
 # print(housingDataWithoutLabelsTrain.shape)
 # print(housingDataNormalisedTest.head())
 # print(housingDataNormalisedTest.shape)
-svr = svmTest(housingDataNormalisedTrain, labelsTrain)
+svr = svmTest(housingDataNormalisedTrain, housingDataTrainLabels)
 predictions = svr.predict(housingDataNormalisedValidation)
+confidence = svr.score(housingDataValidation, housingDataValidationLabels)
+print(confidence)
 print(metrics.mean_squared_log_error(housingDataValidationLabels, predictions))
 
-res = pd.DataFrame({"Id":Ids, "SalePrice": predictions})
-res.to_csv("predictions.csv", index=False)
-print(predictions)
+predictionsTest = svr.predict(housingDataNormalisedTest)
 
-# scatterPlot(housingDataWithoutLabels)
+res = pd.DataFrame({"Id":Ids, "SalePrice": np.exp(predictionsTest)})
+res.to_csv("predictions.csv", index=False)
+
+scatterPlot(housingDataNormalisedTrain)
 
 
 # print(housing_data.head())
