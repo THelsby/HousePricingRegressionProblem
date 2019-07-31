@@ -4,10 +4,12 @@ from sklearn import preprocessing, metrics
 from scipy import stats
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+from xgboost import XGBRegressor
+
 from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.tree import DecisionTreeRegressor
 from statsmodels.graphics.gofplots import qqplot
 import seaborn as sns
@@ -69,7 +71,9 @@ def fillNaValues(data):
 
 
 def removeColumns(data):
-    data = data.drop(['Utilities'], axis=1)
+    columns = ["Utilities", "SaleType", "PoolArea"]
+    for column in columns:
+        data = data.drop([column], axis=1)
     return data
 
 
@@ -122,7 +126,7 @@ def trainTestSplit(trainData, trainLabels):
 
 
 def supportVectorRegression(trainX, testX, trainY, testY):
-    svr = SVR(gamma="scale", C=1.0, epsilon=0.001)
+    svr = SVR(gamma='scale', C=10.0, epsilon=0.2)
     svr.fit(trainX, trainY)
     confidence = svr.score(testX, testY)
     print("SVM Prediction Score {}".format(confidence))
@@ -141,21 +145,29 @@ def printPredictionToCSV(_id, predictions):
 
 
 def treeRegression(trainX, testX, trainY, testY):
-    tree_reg = DecisionTreeRegressor()
-    tree_reg.fit(trainX, trainY)
-    confidence = tree_reg.score(testX, testY)
+    treeReg = DecisionTreeRegressor()
+    treeReg.fit(trainX, trainY)
+    confidence = treeReg.score(testX, testY)
     print("TR Prediction Score {}".format(confidence))
-    predictions = tree_reg.predict(testX)
+    predictions = treeReg.predict(testX)
     return predictions
 
 
 def linearRegression(trainX, testX, trainY, testY):
-    lin_reg = LinearRegression()
-    lin_reg.fit(trainX, trainY)
-    confidence = lin_reg.score(testX, testY)
+    linReg = LinearRegression()
+    linReg.fit(trainX, trainY)
+    confidence = linReg.score(testX, testY)
     print("LR Prediction Score {}".format(confidence))
-    predictions = lin_reg.predict(testX)
+    predictions = linReg.predict(testX)
     return predictions
+
+
+def xgBoost(trainX, testX, trainY, testY):
+    xgbReg = XGBRegressor()
+    xgbReg.fit(trainX, trainY, verbose=False)
+    confidence = xgbReg.score(testX, testY)
+    print("XGB Regressor Prediction Score {}".format(confidence))
+    return 0
 
 
 def dataPipeline():
@@ -176,7 +188,7 @@ def dataPipeline():
     # checkNAValues(train)
     test = ordinalEncoder(test)
     train = ordinalEncoder(train)
-    scatterPlot(train)
+    # scatterPlot(train)
 
     corr_matrix = train.corr()
     print(corr_matrix['SalePrice'].sort_values(ascending=False))
@@ -186,6 +198,7 @@ def dataPipeline():
     predictionsSVM = supportVectorRegression(trainX, testX, trainY, testY)
     predictionsTR = treeRegression(trainX, testX, trainY, testY)
     predictionsLR = linearRegression(trainX, testX, trainY, testY)
+    predictionsXGBR = xgBoost(trainX, testX, trainY, testY)
     # printPredictionToCSV(testId, np.exp(predictionsLR))
 
 
