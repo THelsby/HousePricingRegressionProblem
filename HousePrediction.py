@@ -4,7 +4,6 @@ from sklearn import preprocessing, metrics
 from scipy import stats
 from scipy.stats import norm
 import matplotlib.pyplot as plt
-from xgboost import XGBRegressor
 
 from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
@@ -162,12 +161,12 @@ def linearRegression(trainX, testX, trainY, testY):
     return predictions
 
 
-def xgBoost(trainX, testX, trainY, testY):
-    xgbReg = XGBRegressor()
-    xgbReg.fit(trainX, trainY, verbose=False)
-    confidence = xgbReg.score(testX, testY)
-    print("XGB Regressor Prediction Score {}".format(confidence))
-    return 0
+# def xgBoost(trainX, testX, trainY, testY):
+#     xgbReg = XGBRegressor()
+#     xgbReg.fit(trainX, trainY, verbose=False)
+#     confidence = xgbReg.score(testX, testY)
+#     print("XGB Regressor Prediction Score {}".format(confidence))
+#     return 0
 
 
 def dataPipeline():
@@ -198,7 +197,7 @@ def dataPipeline():
     predictionsSVM = supportVectorRegression(trainX, testX, trainY, testY)
     predictionsTR = treeRegression(trainX, testX, trainY, testY)
     predictionsLR = linearRegression(trainX, testX, trainY, testY)
-    predictionsXGBR = xgBoost(trainX, testX, trainY, testY)
+    # predictionsXGBR = xgBoost(trainX, testX, trainY, testY)
     # printPredictionToCSV(testId, np.exp(predictionsLR))
 
 
