@@ -1,17 +1,18 @@
+import re
+
 import numpy as np
 import pandas as pd
 from sklearn import preprocessing, metrics
 from scipy import stats
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+import pickle
 
 from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.tree import DecisionTreeRegressor
-from statsmodels.graphics.gofplots import qqplot
-import seaborn as sns
 
 
 def scatterPlot(dataset):
@@ -24,8 +25,8 @@ def scatterPlot(dataset):
 
 
 def readInData():
-    train = pd.read_csv("train.csv")
-    test = pd.read_csv("test.csv")
+    train = pd.read_csv("prediction/pricePrediction/train.csv")
+    test = pd.read_csv("prediction/pricePrediction/test.csv")
     return train, test
 
 
@@ -65,12 +66,11 @@ def fillNaValues(data):
     data = fillNaToMode(data)
     data = fillNaToZero(data)
     data = fillNaToCustom(data)
-    data = removeColumns(data)
     return data
 
 
 def removeColumns(data):
-    columns = ["Utilities", "SaleType", "PoolArea"]
+    columns = ["Utilities", "SaleType", "MoSold", "YrSold", "SaleCondition"]
     for column in columns:
         data = data.drop([column], axis=1)
     return data
@@ -92,7 +92,7 @@ def fillNaToMedian(data):
 
 
 def fillNaToMode(data):
-    columns = ["MSZoning", "Functional", "Electrical", "KitchenQual", "Exterior1st", "Exterior2nd", "SaleType"]
+    columns = ["MSZoning", "Functional", "Electrical", "KitchenQual", "Exterior1st", "Exterior2nd"]
     for column in columns:
         data[column] = data[column].fillna(data[column].mode()[0])
     return data
@@ -117,6 +117,15 @@ def ordinalEncoder(data):
     for column in columns:
         data[column] = enc.fit_transform(data[column].values.reshape(-1, 1))
     return data
+
+
+# def ordinalEncoderPred(data):
+#     columns = list(data.select_dtypes(include=[np.object]))
+#     for column in columns:
+#         filename = 'prediction/ordinalEncoders/' + column + '.sav'
+#         enc = pickle.loads(open(filename, 'wb'))
+#         data[column] = enc.fit_transform(data[column].values.reshape(-1, 1))
+#     return data
 
 
 def trainTestSplit(trainData, trainLabels):
@@ -157,8 +166,7 @@ def linearRegression(trainX, testX, trainY, testY):
     linReg.fit(trainX, trainY)
     confidence = linReg.score(testX, testY)
     print("LR Prediction Score {}".format(confidence))
-    predictions = linReg.predict(testX)
-    return predictions
+    return linReg
 
 
 # def xgBoost(trainX, testX, trainY, testY):
@@ -169,7 +177,8 @@ def linearRegression(trainX, testX, trainY, testY):
 #     return 0
 
 
-def dataPipeline():
+def trainModel():
+    print("HELLO")
     train, test = readInData()
 
     print("The Shape of the training data : {} ".format(train.shape))
@@ -184,21 +193,88 @@ def dataPipeline():
     # checkNAValues(train)
     test = fillNaValues(test)
     train = fillNaValues(train)
+    train = removeColumns(train)
+    test = removeColumns(test)
     # checkNAValues(train)
+    train = dropSalesPrice(train)
+    train.rename(columns={'1stFlrSF': 'OneFlrSF',
+                          '2ndFlrSF': 'TwoFlrSF',
+                          '3SsnPorch': 'ThreeSsnPorch'},
+                 inplace=True)
+    export_csv = train.to_csv(r'prediction/pricePrediction/trainingData.csv', index=None, header=True)
     test = ordinalEncoder(test)
     train = ordinalEncoder(train)
+    convertDtypes(train)
     # scatterPlot(train)
 
-    corr_matrix = train.corr()
-    print(corr_matrix['SalePrice'].sort_values(ascending=False))
-    train = dropSalesPrice(train)
+    # corr_matrix = train.corr()
+    # print(corr_matrix['SalePrice'].sort_values(ascending=False))
 
     trainX, testX, trainY, testY = trainTestSplit(train, trainLabels)
     predictionsSVM = supportVectorRegression(trainX, testX, trainY, testY)
     predictionsTR = treeRegression(trainX, testX, trainY, testY)
-    predictionsLR = linearRegression(trainX, testX, trainY, testY)
+    linReg = linearRegression(trainX, testX, trainY, testY)
+    filename = 'finalized_model.sav'
+    pickle.dump(linReg, open(filename, 'wb'))
     # predictionsXGBR = xgBoost(trainX, testX, trainY, testY)
     # printPredictionToCSV(testId, np.exp(predictionsLR))
+    loaded_model = pickle.load(open(filename, 'rb'))
+    result = loaded_model.score(testX, testY)
+    print("RESULT ", result)
 
 
-dataPipeline()
+def convertDtypes(data):
+    columnDtypes = {}
+    for col in list(data.columns):
+        col_dtype = re.sub(r'\d+', '', type(data[col][0]).__name__)
+        try:
+            if col_dtype == "int":
+                columnDtypes[col] = "int"
+            elif col_dtype == "float":
+                columnDtypes[col] = "float"
+            else:
+                columnDtypes = "float"
+        except:
+            continue
+        pickle.dump(columnDtypes, open("dtypes.sav", "wb"))
+
+
+def predictPrice(request):
+    filename = 'finalized_model.sav'
+    for key, val in request.items():
+        print(key, " ", val)
+    dataFrame = pd.DataFrame(columns=list(request.keys()))
+    dataFrame.loc[0] = list(request.values())
+    # valueStore = []
+    # for values in list(request.values()):
+    #     print(values[0])
+    #     valueStore.append(values[0])
+    # print(dataFrame.shape)
+    # print("LENGTH", len(valueStore))
+    columnDtypes = pickle.load(open("dtypes.sav", "rb"))
+    for col in columnDtypes:
+        colDtype = columnDtypes[col]
+        try:
+            if colDtype == "int":
+                dataFrame[col] = int(dataFrame[col])
+            elif colDtype == "float":
+                dataFrame[col] = float(dataFrame[col])
+        except:
+            continue
+    print(dataFrame)
+    loaded_model = pickle.load(open(filename, 'rb'))
+    data = fillNaValues(dataFrame)
+    train = pd.read_csv("prediction/pricePrediction/trainingData.csv", keep_default_na=False)
+    print(data.dtypes)
+    print(train.dtypes)
+    fullset = pd.concat([train, data], sort=False)
+    print(fullset)
+    export_csv = fullset.to_csv(r'prediction/pricePrediction/predictionData.csv', index=None,
+                                header=True)
+    fullset = ordinalEncoder(fullset)
+    data = fullset.tail(1)
+    print(data)
+    export_csv = data.to_csv(r'prediction/pricePrediction/predictionData.csv', index=None,
+                             header=True)
+    prediction = loaded_model.predict(data)
+    return round(np.exp(prediction[0]), 2)
